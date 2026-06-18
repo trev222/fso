@@ -1,36 +1,32 @@
 # SimNation Developer Handoff - FreeSO Test Changes
 
-This document is intended for SimNation owners/developers who want to review and port the changes tested in the local FreeSO sandbox.
+This document summarizes the FreeSO test changes in five feature buckets for SimNation owners/developers:
+
+1. Mystic Tree Changes
+2. Skill Lock Changes
+3. Lot Size Changes
+4. Buy Mode Changes
+5. Item Wear Changes
 
 The work was tested in an isolated FreeSO checkout at:
 
 `/Users/trevor/Desktop/test-freeso`
 
-That local path is only a reference. Paths below are written relative to a FreeSO/SimNation source tree wherever possible.
+That path is only a test reference. File paths below are written relative to a FreeSO/SimNation source tree wherever possible.
 
 Important scope note:
 
-- The portable changes are the code/content changes listed under "Portable Changes".
-- The local FreeSO database edits, test accounts, local run scripts, and macOS launch helpers were used only for testing.
-- Do not copy the local test database, local credentials, or local launch scripts into a production SimNation setup unless you intentionally want the same sandbox behavior.
+- The five feature sections are the portable changes to review.
+- Local FreeSO accounts, local database edits, and local launch scripts were only for testing.
+- Do not copy local test credentials, local database data, or local machine-specific scripts into production.
 
-## Recommended Integration Order
+## 1. Mystic Tree Changes
 
-1. Review the portable code changes in this document.
-2. Copy the corrected mystic tree `.iff` assets from this folder into the target content tree.
-3. Add or verify the catalog entries for the mystic tree variants.
-4. Port the C# changes into the matching SimNation source files.
-5. Rebuild the client and server.
-6. Test on a non-production shard before deploying.
-7. Treat all database/account/skill-value edits as test-only unless the SimNation team explicitly wants them on a dev shard.
+Added and corrected the SimNation mystic tree variants so they can be safely distributed and tested in FreeSO/SimNation content.
 
-## Portable Changes
+### Assets Included
 
-## 1. Corrected SimNation Mystic Tree Assets
-
-Added corrected SimNation mystic tree variants for testing in FreeSO.
-
-Files included in this handoff folder:
+The handoff folder contains these corrected `.iff` files:
 
 - `SN_RainbowMysticTree.iff`
 - `SimNation_BlackMysticTree.iff`
@@ -43,11 +39,13 @@ Files included in this handoff folder:
 - `SimNation_SilverMysticTree.iff`
 - `SimNation_YellowMysticTree.iff`
 
-Suggested install location:
+Suggested content location:
 
 - `Content/Objects/SimNationMysticTrees/`
 
-The exact folder can differ in SimNation, but the client and server must both be able to resolve the objects.
+The exact folder can differ in SimNation, but both client and server content resolution need to see the same object files.
+
+### Catalog Entries
 
 Catalog entries used in the FreeSO test build:
 
@@ -65,127 +63,48 @@ Catalog entries used in the FreeSO test build:
 <P g="481A4817" s="29" p="0" n="Black Mystic Tree" t="simnation, mystic, tree, rare, black" />
 ```
 
-Source file updated in the FreeSO test build:
+FreeSO test file updated:
 
 - `TSOClient/FSO.Content.TSO/Content/Objects/catalog_downloads.xml`
 
-Asset fix details:
+### Sprite And Placement Fixes
 
-- The new tree recolors had uneven placement in zoom 2/3.
-- The `DGRP` offsets mostly matched the natural mystic tree.
-- The actual issue was in the recolored `SPR2` frames for sprite chunks `4000` through `5003`.
-- Those recolored frames had different canvases/origins from the natural tree.
-- The fix recanvased the recolored `SPR2` frames to match the original natural mystic tree's `mystictree.spf` frame bounds.
-- Recolored pixels, palettes, and depth data were preserved.
+Problem:
 
-Additional drawing group cleanup:
+- The added tree recolors looked uneven at zoom levels 2 and 3.
+- `DGRP` offsets mostly matched the natural mystic tree.
+- The real mismatch was in the recolored `SPR2` frame canvases/origins.
+
+Fix:
+
+- Recanvased affected recolored `SPR2` frames to match the natural mystic tree's `mystictree.spf` frame bounds.
+- Preserved each recolor's pixels, palettes, and depth data.
+- Affected sprite chunks were `4000` through `5003`.
+
+Additional `DGRP` cleanup:
 
 - Red, dark blue, and purple trees had leftover placement differences.
-- These `DGRP` chunks were normalized to the natural/good layout:
+- These drawing groups were normalized to the natural/good layout:
   - `103`
   - `104`
   - `203`
   - `204`
   - `403`
 
-Validation performed:
+Validation:
 
 - Corrected test copies had `0` remaining `SPR2` canvas mismatches against the natural mystic tree reference.
 - Red, dark blue, and purple had `0` remaining `DGRP` mismatches for the affected placement chunks.
 - Mesh cache geometry already matched the natural tree payload.
 - No `.fsom` or mesh cache edits were required.
 
-## 2. Staff/Admin Rare Catalog Access
+## 2. Skill Lock Changes
 
-Enabled staff/admin users to access rare catalog category `29` from buy mode.
+Changed skill locks so each lock protects through `.99` past its whole skill point.
 
-Source file changed:
+If SimNation already has this behavior, treat this section as a comparison/reference rather than a required port.
 
-- `TSOClient/tso.client/UI/Panels/UIBuyMode.cs`
-
-Implementation details:
-
-- Added `using FSO.SimAntics.Model.TSOPlatform;`.
-- Added a helper equivalent to:
-
-```csharp
-private bool HasStaffCatalogAccess()
-{
-    var permissions = (LotController?.ActiveEntity?.TSOState as VMTSOAvatarState)?.Permissions;
-    return GameFacade.EnableMod || (permissions.HasValue && permissions.Value >= VMTSOAvatarPermissions.Admin);
-}
-```
-
-- In `Update(UpdateState state)`, remapped the Misc category when Shift is held by staff/admin:
-
-```csharp
-CategoryMap[MiscButton] = (state.ShiftDown && HasStaffCatalogAccess()) ? 29 : 18;
-```
-
-Behavior:
-
-- Staff/admin users can hold Shift while using Misc to access category `29`.
-- Normal users stay on the normal Misc category `18`.
-
-## 3. 12th Full-Map Lot Size Upgrade
-
-Added a 12th property upgrade tier that covers the full lot map.
-
-Source files changed:
-
-- `TSOClient/tso.simantics/Model/VMBuildableAreaInfo.cs`
-- `TSOClient/tso.simantics/VMContext.cs`
-- `TSOClient/tso.client/UI/Panels/UIHouseMode.cs`
-
-Implementation details:
-
-In `VMBuildableAreaInfo.cs`:
-
-- Added a final buildable size of `77`.
-- Added final upgrade price `83000`.
-- Added final object limit `325`.
-
-Values used:
-
-```csharp
-BuildableSizes: add 77
-BuildableAreaPrices: add 83000
-ObjectLimitPerPerson: add 325
-```
-
-In `VMContext.GetTSOBuildableArea`:
-
-- Clamp the lot size index to the valid array range.
-- Treat the final size tier as a full-map lot.
-- Return the full architecture rectangle for that final tier:
-
-```csharp
-lotSize = Math.Min(lotSize, VMBuildableAreaInfo.BuildableSizes.Length - 1);
-var fullMapSize = lotSize == VMBuildableAreaInfo.BuildableSizes.Length - 1;
-
-if (fullMapSize)
-{
-    return new Rectangle(0, 0, w, h);
-}
-```
-
-In `UIHouseMode.cs`:
-
-- Updated the upgrade preview scaling so the new size does not overflow the preview.
-
-```csharp
-float previewMaxSize = Math.Max(64f, Math.Max(oldSize, newSize));
-float sizePct = newSize / previewMaxSize;
-```
-
-Behavior:
-
-- The property upgrade UI gains a 12th tier.
-- The final tier should cover the entire map square.
-
-## 4. Skill Locks Now Protect `.99` Past The Whole Skill Point
-
-Changed skill locks so a lock count protects through `.99` of that level.
+### Behavior
 
 Old behavior:
 
@@ -199,14 +118,14 @@ New behavior:
 - `19` locks protect to `19.99`.
 - `20` locks protect to `20.99`.
 
-Source files changed:
+### Files Changed
 
 - `TSOClient/tso.simantics/NetPlay/Model/Commands/VMNetSkillLockCmd.cs`
 - `TSOClient/FSO.Server/Servers/Lot/Domain/LotContainer.cs`
 
-Implementation details:
+### Implementation Notes
 
-Add helpers in `VMNetSkillLockCmd.cs`:
+Add threshold conversion helpers in `VMNetSkillLockCmd.cs`:
 
 ```csharp
 public static short LockThresholdForLevel(int level)
@@ -221,7 +140,7 @@ public static int LockLevelForThreshold(int threshold)
 }
 ```
 
-Update lock budget calculation:
+Use `LockLevelForThreshold(...)` when calculating how many locks are already spent:
 
 ```csharp
 otherLocked += LockLevelForThreshold(
@@ -229,7 +148,7 @@ otherLocked += LockLevelForThreshold(
 );
 ```
 
-Update selected lock storage:
+Use `LockThresholdForLevel(...)` when storing the selected lock threshold:
 
 ```csharp
 caller.SetPersonData(
@@ -238,7 +157,7 @@ caller.SetPersonData(
 );
 ```
 
-Update `LotContainer.cs` avatar load:
+On avatar load in `LotContainer.cs`, convert DB whole lock counts to runtime `.99` thresholds:
 
 ```csharp
 state.SkillLockBody = VMNetSkillLockCmd.LockThresholdForLevel(avatar.lock_body);
@@ -249,7 +168,7 @@ state.SkillLockLogic = VMNetSkillLockCmd.LockThresholdForLevel(avatar.lock_logic
 state.SkillLockMechanical = VMNetSkillLockCmd.LockThresholdForLevel(avatar.lock_mechanical);
 ```
 
-Update `LotContainer.cs` avatar save:
+On avatar save in `LotContainer.cs`, convert runtime thresholds back to DB whole lock counts:
 
 ```csharp
 state.lock_body = (ushort)VMNetSkillLockCmd.LockLevelForThreshold(avatar.SkillLockBody);
@@ -263,30 +182,129 @@ state.lock_mechanical = (ushort)VMNetSkillLockCmd.LockLevelForThreshold(avatar.S
 Database note:
 
 - No schema change is required.
-- The database can continue storing whole lock counts.
-- Runtime converts whole lock counts to `.99` thresholds on load.
-- Runtime converts thresholds back to whole lock counts on save.
+- The database can keep storing whole lock counts.
+- Runtime converts whole counts to `.99` thresholds on load.
+- Runtime converts thresholds back to whole counts on save.
 
-## 5. Guest Read-Only Buy Mode Inspection
+### Verification
 
-Allowed non-roommate, non-admin guests to inspect lot objects in buy mode without being able to move or modify them.
+- A skill at `20.99` with `20` locks should not decay below `20.99`.
+- A skill at `20.99` with `0` locks should remain eligible for normal decay.
+- Lock point spending should still count whole lock levels, not `.99` thresholds.
 
-Goal:
+## 3. Lot Size Changes
 
-- Guests can enter buy mode.
-- Guests can click an object and view object info.
-- Guests can see the object name, description, wear, and owner info through the normal query/info panel.
-- Guests cannot move, sell, inventory, upgrade, buy, cancel sale, edit price, or otherwise modify the object.
-- Owners, roommates, build-buy roommates, and admins keep normal behavior.
+Added a 12th property upgrade tier that covers the full lot map.
 
-Source files changed:
+If SimNation already has full-map property upgrades, treat this section as a comparison/reference rather than a required port.
+
+### Files Changed
+
+- `TSOClient/tso.simantics/Model/VMBuildableAreaInfo.cs`
+- `TSOClient/tso.simantics/VMContext.cs`
+- `TSOClient/tso.client/UI/Panels/UIHouseMode.cs`
+
+### Implementation Notes
+
+In `VMBuildableAreaInfo.cs`, add one final tier:
+
+```csharp
+BuildableSizes: add 77
+BuildableAreaPrices: add 83000
+ObjectLimitPerPerson: add 325
+```
+
+In `VMContext.GetTSOBuildableArea`, clamp the tier index and make the final tier return the whole map:
+
+```csharp
+lotSize = Math.Min(lotSize, VMBuildableAreaInfo.BuildableSizes.Length - 1);
+var fullMapSize = lotSize == VMBuildableAreaInfo.BuildableSizes.Length - 1;
+
+if (fullMapSize)
+{
+    return new Rectangle(0, 0, w, h);
+}
+```
+
+In `UIHouseMode.cs`, scale the lot upgrade preview against the largest relevant size so the full-map tier fits:
+
+```csharp
+float previewMaxSize = Math.Max(64f, Math.Max(oldSize, newSize));
+float sizePct = newSize / previewMaxSize;
+```
+
+### Behavior
+
+- The property upgrade UI gains a 12th tier.
+- The final tier should make the entire lot square buildable.
+- The preview UI should not overflow when showing the final tier.
+
+### Verification
+
+- Upgrade UI shows tier 12.
+- Final tier covers the full square.
+- Preview remains visually centered and scaled.
+- Existing lower tiers still behave normally.
+
+## 4. Buy Mode Changes
+
+Added/adjusted buy-mode behavior for staff/admin rare catalog access and guest read-only inspection.
+
+If SimNation already has a staff creative catalog, compare before porting the staff/admin catalog part. The guest inspection part is separate and can be ported independently.
+
+### 4A. Staff/Admin Rare Catalog Access
+
+Enabled staff/admin users to access rare catalog category `29` from buy mode.
+
+File changed:
+
+- `TSOClient/tso.client/UI/Panels/UIBuyMode.cs`
+
+Implementation:
+
+```csharp
+private bool HasStaffCatalogAccess()
+{
+    var permissions = (LotController?.ActiveEntity?.TSOState as VMTSOAvatarState)?.Permissions;
+    return GameFacade.EnableMod || (permissions.HasValue && permissions.Value >= VMTSOAvatarPermissions.Admin);
+}
+```
+
+In `Update(UpdateState state)`:
+
+```csharp
+CategoryMap[MiscButton] = (state.ShiftDown && HasStaffCatalogAccess()) ? 29 : 18;
+```
+
+Behavior:
+
+- Staff/admin users can hold Shift while using Misc to access category `29`.
+- Normal users stay on normal Misc category `18`.
+
+### 4B. Guest Read-Only Object Inspection
+
+Allowed non-roommate, non-admin guests to inspect lot objects in buy mode without modifying them.
+
+Files changed:
 
 - `TSOClient/tso.client/UI/Panels/UIObjectHolder.cs`
 - `TSOClient/tso.client/UI/Panels/UIQueryPanel.cs`
 
-Implementation details in `UIObjectHolder.cs`:
+Guest behavior:
 
-- Added a read-only guest check:
+- Guests can enter buy mode.
+- Guests can click an object and view object info.
+- Guests can see object name, description, wear, and owner information.
+- Guests cannot move, sell, inventory, upgrade, buy, cancel sale, edit price, or otherwise modify the object.
+
+Unaffected users:
+
+- Owners
+- Roommates
+- Build-buy roommates
+- Admins
+
+Implementation in `UIObjectHolder.cs`:
 
 ```csharp
 private bool IsReadOnlyGuest()
@@ -295,8 +313,6 @@ private bool IsReadOnlyGuest()
     return !Roommate && permissions < VMTSOAvatarPermissions.Admin;
 }
 ```
-
-- Added an object-info path:
 
 ```csharp
 private void ShowReadOnlyObjectInfo(VMEntity obj, UpdateState state)
@@ -316,11 +332,12 @@ private void ShowReadOnlyObjectInfo(VMEntity obj, UpdateState state)
 }
 ```
 
-- In the object click path, route read-only guests to `ShowReadOnlyObjectInfo(...)` instead of creating a ghost copy and starting the move-object flow.
+In the object click path:
 
-Implementation details in `UIQueryPanel.cs`:
+- If `IsReadOnlyGuest()` is true, call `ShowReadOnlyObjectInfo(...)`.
+- Otherwise keep the normal ghost-copy/move-object flow.
 
-- Added a read-only object-info check:
+Implementation in `UIQueryPanel.cs`:
 
 ```csharp
 private bool IsReadOnlyObjectInfo()
@@ -330,40 +347,37 @@ private bool IsReadOnlyObjectInfo()
 }
 ```
 
-- Disabled object modification controls when `IsReadOnlyObjectInfo()` is true:
-  - Sell back
-  - Inventory/send back
-  - Async sale
-  - Async cancel sale
-  - Async edit price
-  - Async buy
-  - Upgrade button
-  - Upgrade list editing
+Disable these controls when `IsReadOnlyObjectInfo()` is true:
 
-Behavior:
+- Sell back
+- Inventory/send back
+- Async sale
+- Async cancel sale
+- Async edit price
+- Async buy
+- Upgrade button
+- Upgrade list editing
 
-- Guest inspection is read-only.
-- Admins and roommates are unaffected.
+### 4C. Guest Inspection Cursor
 
-## 6. Help Cursor For Guest Inspection
+Added a help/question cursor for the read-only guest inspection mode.
 
-Added a question/help cursor for the read-only guest inspection mode.
-
-Source files changed:
+Files changed:
 
 - `TSOClient/tso.common/Rendering/Framework/CursorManager.cs`
 - `TSOClient/tso.client/UI/Panels/UIObjectHolder.cs`
 
-Implementation details:
+Implementation:
 
-- Added `CursorType.Help`.
-- Mapped it to the existing `help.cur` cursor asset:
+```csharp
+CursorType.Help
+```
 
 ```csharp
 { CursorType.Help, "help.cur" }
 ```
 
-- In `UIObjectHolder.Update`, use the help cursor for read-only guests:
+In `UIObjectHolder.Update`:
 
 ```csharp
 CursorType cur = IsReadOnlyGuest() ? CursorType.Help : CursorType.SimsMove;
@@ -373,17 +387,28 @@ Asset used:
 
 - `TSOClient/uigraphics/shared/cursors/help.cur`
 
-## 7. Zero Wear For `$0` And `$1` Items
+### Verification
+
+- Staff/admin users can access rare category `29` if this part is ported.
+- Normal users cannot access the staff-only rare catalog path.
+- Guests can inspect object details in buy mode.
+- Guests cannot move, sell, inventory, upgrade, or edit objects.
+- Owners, roommates, build-buy roommates, and admins still have normal buy-mode controls.
+- Read-only guest inspection uses the help/question cursor.
+
+## 5. Item Wear Changes
 
 Changed wear behavior so objects with an initial price of `$0` or `$1` always remain at `0%` wear.
 
-Goal:
+### Behavior
 
-- Rare items often cost `$0` or `$1`.
-- These items should not wear down or break.
-- The rule applies to all objects with `InitialPrice <= 1`, not only rare items.
+- Objects with `InitialPrice <= 1` are treated as no-wear items.
+- These objects should not wear down.
+- These objects should not break because of wear.
+- This applies to all `$0` and `$1` objects, not only rare items.
+- Normal-priced objects keep normal wear behavior.
 
-Source files changed:
+### Files Changed
 
 - `TSOClient/tso.simantics/Model/TSOPlatform/VMTSOObjectState.cs`
 - `TSOClient/tso.simantics/Entities/VMMultitileGroup.cs`
@@ -392,6 +417,8 @@ Source files changed:
 - `TSOClient/tso.simantics/NetPlay/Model/Commands/VMNetPlaceInventoryCmd.cs`
 - `TSOClient/tso.simantics/NetPlay/Model/Commands/VMNetUpgradeCmd.cs`
 - `TSOClient/tso.simantics/Primitives/VMGenericTSOCall.cs`
+
+### Implementation Notes
 
 Core helper added in `VMTSOObjectState.cs`:
 
@@ -430,55 +457,30 @@ Quarter-day wear behavior:
 
 Call sites added:
 
-- On lot/object load:
-  - `VMMultitileGroup.Load(...)`
-- On object creation:
-  - `VMContext.CreateObjectInstance(...)`
-- After object purchase price is assigned:
-  - `VMNetBuyObjectCmd`
-- After placing from inventory:
-  - `VMNetPlaceInventoryCmd`
-- After upgrade price adjustments:
-  - `VMNetUpgradeCmd`
-- During repair behavior:
-  - `VMGenericTSOCall`
+- `VMMultitileGroup.Load(...)`
+- `VMContext.CreateObjectInstance(...)`
+- `VMNetBuyObjectCmd`
+- `VMNetPlaceInventoryCmd`
+- `VMNetUpgradeCmd`
+- `VMGenericTSOCall`
 
-Repair behavior note:
+Repair behavior:
 
 - Normal objects still use the usual repair minimum wear behavior.
 - `$0` and `$1` objects are forced back to `0` wear instead of being repaired to the normal minimum.
 
-## 8. Optional macOS/Mono Development Compatibility
+### Verification
 
-These changes were useful for running the FreeSO test client on macOS/Mono. They may not be needed for SimNation production.
+- `$0` and `$1` objects load with `0%` wear.
+- `$0` and `$1` objects stay at `0%` wear after quarter-day processing.
+- `$0` and `$1` objects do not show broken wear particles.
+- Normal-priced objects still wear normally.
 
-Source files changed:
+## Local Test Notes
 
-- `TSOClient/FSO.Windows/FSO.Windows.csproj`
-- `TSOClient/FSO.Windows/UITTSContext.cs`
-- `TSOClient/tso.client/FSO.Client.csproj`
-- `TSOClient/tso.client/Utils/MonogameLinker.cs`
+These notes explain how the features were tested. They are not required production setup steps.
 
-What changed:
-
-- Added `NO_SYSTEM_SPEECH` on non-Windows builds.
-- Made `System.Speech` a Windows-only reference.
-- Guarded `UITTSContext.Speak(...)` so non-Windows builds return early.
-- Added macOS SDL/OpenAL dylibs to client output content.
-- Adjusted MonoGame linking so macOS uses the WindowsGL MonoGame path used by the local test setup.
-
-Recommendation:
-
-- Treat this as dev-environment support, not a required gameplay feature.
-- SimNation should only port this if their developers need the same macOS/Mono local client path.
-
-## Local Test-Only Changes
-
-The following changes were made only to test the features in an isolated FreeSO environment. They are documented for transparency, but they should not be treated as production SimNation install steps.
-
-## 9. Isolated FreeSO Sandbox
-
-Set up a local FreeSO sandbox so the work could be tested without modifying SimNation.
+### Isolated FreeSO Sandbox
 
 Local sandbox path:
 
@@ -486,7 +488,7 @@ Local sandbox path:
 
 Local database:
 
-- MariaDB running on `127.0.0.1:13306`
+- MariaDB on `127.0.0.1:13306`
 - Database name: `fso`
 
 Local helper scripts:
@@ -498,46 +500,20 @@ Local helper scripts:
 - `run-freeso.command`
 - `init-freeso-db.command`
 
-Production note:
+### Test Accounts And Avatars
 
-- These scripts are local-machine convenience scripts.
-- They are not required for SimNation production.
-
-## 10. Local Test Accounts
-
-Created test accounts in the local FreeSO database.
-
-Accounts:
+Local test accounts:
 
 - `admin2`
 - `guest`
 
-Purpose:
+Local test avatar values:
 
-- `admin2` was used for two-admin/two-client testing.
-- `guest` was used to test non-roommate, non-admin buy-mode inspection behavior.
-
-Production note:
-
-- These were local database accounts only.
-- Do not create these accounts in production unless wanted for a test shard.
-
-## 11. Local Test Character Money And Skills
-
-Updated local test character values to verify gameplay behavior.
-
-Local admin avatar:
-
-- Account/avatar: `admin` / `trevor`
-- Money was set to `5,000,000`.
-- All six skills were later set to `20.99`.
-- Body remained locked at `20` locks for skill-lock testing.
-
-Local guest avatar:
-
-- Account/avatar: `guest` / `guest`
-- All six skills were set to `20.99`.
-- No skill locks were set.
+- `admin` / `trevor` was given `5,000,000` money for testing.
+- `admin` / `trevor` was given all six skills at `20.99`.
+- `admin` / `trevor` kept Body locked at `20` locks for skill-lock testing.
+- `guest` / `guest` was given all six skills at `20.99`.
+- `guest` / `guest` had no skill locks set.
 
 Database field values used for `20.99`:
 
@@ -550,51 +526,43 @@ skill_logic = 2099
 skill_mechanical = 2099
 ```
 
-Production note:
+### Optional macOS/Mono Development Support
 
-- These are test data edits only.
-- They are not required for the code/content changes.
+These changes were useful for running the FreeSO test client on macOS/Mono. They may not be needed for SimNation production.
 
-## 12. Local Build And Restart Commands
+Files touched:
 
-Commands used in the FreeSO test checkout.
+- `TSOClient/FSO.Windows/FSO.Windows.csproj`
+- `TSOClient/FSO.Windows/UITTSContext.cs`
+- `TSOClient/tso.client/FSO.Client.csproj`
+- `TSOClient/tso.client/Utils/MonogameLinker.cs`
 
-Client build:
+Summary:
 
-```sh
-msbuild TSOClient/FSO.Windows/FSO.Windows.csproj /p:Configuration=Release /p:Platform=AnyCPU /v:minimal
-```
+- Added `NO_SYSTEM_SPEECH` on non-Windows builds.
+- Made `System.Speech` a Windows-only reference.
+- Guarded `UITTSContext.Speak(...)` so non-Windows builds return early.
+- Added macOS SDL/OpenAL dylibs to client output content.
+- Adjusted MonoGame linking so macOS uses the WindowsGL MonoGame path used by the local test setup.
 
-Server build:
+Recommendation:
 
-```sh
-MSBuildSDKsPath=<repo>/.dotnet-2.2/sdk/2.2.207/Sdks msbuild TSOClient/FSO.Server.Core/FSO.Server.Core.csproj /p:Configuration=Release /p:Platform=AnyCPU /p:OutputPath=<repo>/freeso-server/app-msbuild/ /v:minimal
-```
+- Treat this as development support only.
+- SimNation should port it only if their developers need the same macOS/Mono local client path.
 
-Production note:
-
-- SimNation developers should use their normal build pipeline.
-- The commands above are useful only as a reference for the FreeSO test environment.
-
-## Verification Checklist For SimNation Developers
-
-Use this checklist on a dev shard after porting.
+## Final Review Checklist
 
 1. Mystic tree variants appear in the intended catalog category.
 2. Mystic tree variants align correctly at all zoom levels and rotations.
-3. Staff/admin users can access rare category `29`.
-4. Normal users cannot access staff-only rare catalog behavior.
-5. The property upgrade UI shows the 12th lot-size tier.
-6. The 12th lot-size tier makes the whole map square buildable.
-7. Skill locks protect `.99` past the whole lock count.
-8. A `20`-lock skill at `20.99` does not decay below `20.99`.
-9. Guests can open buy mode and inspect object details.
-10. Guests cannot move, sell, inventory, upgrade, or edit objects.
-11. Owners, roommates, build-buy roommates, and admins still have normal buy-mode controls.
-12. Read-only guest inspection uses the help/question cursor.
-13. `$0` and `$1` objects load with `0%` wear.
-14. `$0` and `$1` objects do not gain wear over quarter-day processing.
-15. Normal-priced objects still wear normally.
+3. Skill locks protect `.99` past the whole lock count.
+4. Full-map lot tier works if the Lot Size Changes are ported.
+5. Guests can inspect object details in buy mode.
+6. Guests cannot modify objects through read-only inspection.
+7. Owners, roommates, build-buy roommates, and admins still have normal buy-mode controls.
+8. Read-only guest inspection uses the help/question cursor.
+9. `$0` and `$1` objects load with `0%` wear.
+10. `$0` and `$1` objects do not gain wear over quarter-day processing.
+11. Normal-priced objects still wear normally.
 
 ## Files In This Handoff Folder
 
