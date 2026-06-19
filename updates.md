@@ -399,13 +399,15 @@ Asset used:
 
 ## 5. Item Wear Changes
 
-Changed wear behavior so objects with an initial price of `$0` or `$1` always remain at `0%` wear.
+Changed wear behavior so objects with an initial price of `$0` or `$1` always remain at `0%` wear, and cannot be salvaged.
 
 ### Behavior
 
 - Objects with `InitialPrice <= 1` are treated as no-wear items.
 - These objects should not wear down.
 - These objects should not break because of wear.
+- These objects should not show the `Salvage` pie-menu option.
+- These objects should not be delete/sellback salvageable through the object query panel.
 - This applies to all `$0` and `$1` objects, not only rare items.
 - Normal-priced objects keep normal wear behavior.
 
@@ -418,6 +420,11 @@ Changed wear behavior so objects with an initial price of `$0` or `$1` always re
 - `TSOClient/tso.simantics/NetPlay/Model/Commands/VMNetPlaceInventoryCmd.cs`
 - `TSOClient/tso.simantics/NetPlay/Model/Commands/VMNetUpgradeCmd.cs`
 - `TSOClient/tso.simantics/Primitives/VMGenericTSOCall.cs`
+- `TSOClient/tso.simantics/Entities/VMEntity.cs`
+- `TSOClient/tso.simantics/Model/Platform/VMDefaultValidator.cs`
+- `TSOClient/tso.simantics/Model/Platform/VMFSOCommunityValidator.cs`
+- `TSOClient/tso.client/UI/Panels/UIQueryPanel.cs`
+- `TSOClient/tso.client/UI/Panels/UIObjectHolder.cs`
 
 ### Implementation Notes
 
@@ -427,6 +434,20 @@ Core helper added in `VMTSOObjectState.cs`:
 public static bool HasNoWearValue(VMMultitileGroup group)
 {
     return group != null && group.InitialPrice <= 1;
+}
+
+public static bool ShouldBlockSalvageInteraction(VMEntity entity, string interactionName)
+{
+    if (!HasNoWearValue(entity?.MultitileGroup) || string.IsNullOrWhiteSpace(interactionName)) return false;
+
+    var finalName = interactionName;
+    var slashIndex = finalName.LastIndexOf('/');
+    if (slashIndex > -1) finalName = finalName.Substring(slashIndex + 1);
+
+    var colorIndex = finalName.LastIndexOf(';');
+    if (colorIndex > -1) finalName = finalName.Substring(0, colorIndex);
+
+    return string.Equals(finalName.Trim(), "Salvage", StringComparison.OrdinalIgnoreCase);
 }
 
 public static void ApplyNoWear(VMMultitileGroup group)
@@ -470,11 +491,28 @@ Repair behavior:
 - Normal objects still use the usual repair minimum wear behavior.
 - `$0` and `$1` objects are forced back to `0` wear instead of being repaired to the normal minimum.
 
+Salvage behavior:
+
+- `VMEntity.GetPieMenuForInteraction(...)` removes `Salvage` variants for objects where `HasNoWearValue(entity.MultitileGroup)` is true.
+- `VMEntity.GetPieMenu(...)` skips `Salvage` when building the visible pie menu for those same objects.
+- `VMEntity.GetAction(...)` returns `null` for a blocked `Salvage` action, so an old client or stale menu cannot queue the interaction.
+- `VMDefaultValidator.GetDeleteMode(...)` and `VMFSOCommunityValidator.GetDeleteMode(...)` return `DeleteMode.Disallowed` when the desired mode is `Delete` and the object has `InitialPrice <= 1`.
+- `UIQueryPanel` disables the sellback/delete button for `$0` and `$1` objects.
+- `UIObjectHolder.SellBack(...)` refuses to send `VMNetDeleteObjectCmd` for `$0` and `$1` objects, and pickup selection marks those objects as non-deleteable.
+
+The string helper intentionally strips TTAB category paths and color modifiers before comparing:
+
+- `Rare/Salvage` becomes `Salvage`.
+- `Salvage;1` becomes `Salvage`.
+- The final comparison is exact and case-insensitive, so unrelated interactions containing the word salvage in a longer phrase are not blocked.
+
 ### Verification
 
 - `$0` and `$1` objects load with `0%` wear.
 - `$0` and `$1` objects stay at `0%` wear after quarter-day processing.
 - `$0` and `$1` objects do not show broken wear particles.
+- `$0` and `$1` objects do not show the `Salvage` pie-menu option.
+- `$0` and `$1` objects cannot be delete/sellback salvaged from buy mode.
 - Normal-priced objects still wear normally.
 
 ## 6. Cannon Asset Note
@@ -587,7 +625,9 @@ Recommendation:
 8. Read-only guest inspection uses the help/question cursor.
 9. `$0` and `$1` objects load with `0%` wear.
 10. `$0` and `$1` objects do not gain wear over quarter-day processing.
-11. Normal-priced objects still wear normally.
+11. `$0` and `$1` objects do not show the `Salvage` pie-menu option.
+12. `$0` and `$1` objects cannot be delete/sellback salvaged from buy mode.
+13. Normal-priced objects still wear normally.
 
 ## Files In This Handoff Folder
 
