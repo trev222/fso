@@ -1,12 +1,13 @@
 # SimNation Developer Handoff - FreeSO Test Changes
 
-This document summarizes the FreeSO test changes in five feature buckets for SimNation owners/developers:
+This document summarizes the FreeSO test changes in five feature buckets for SimNation owners/developers, plus one additional cannon asset note:
 
 1. Mystic Tree Changes
 2. Skill Lock Changes
 3. Lot Size Changes
 4. Buy Mode Changes
 5. Item Wear Changes
+6. Cannon Asset Note
 
 The work was tested in an isolated FreeSO checkout at:
 
@@ -476,6 +477,30 @@ Repair behavior:
 - `$0` and `$1` objects do not show broken wear particles.
 - Normal-priced objects still wear normally.
 
+## 6. Cannon Asset Note
+
+Added corrected SimNation cannon variants to this handoff folder:
+
+- `SimNation_CannonPurple.iff`
+- `SimNation_CannonOrange.iff`
+- `SN_CannonSilver.iff`
+- `SN_CannonBronze.iff`
+
+Suggested content location:
+
+- `Content/Objects/SimNationCannons/`
+
+What was corrected:
+
+- Purple, orange, silver/white, and bronze/black-gray cannon `SPR2` frames were recanvased against a known-good cannon layout while preserving each variant's recolored pixels, palettes, and depth data.
+- Silver/white and bronze/black-gray also had differing `DGRP` draw-group sprite offsets, which caused a small distortion at the middle zoom level. Their `DGRP` assembly data was normalized to the known-good cannon layout.
+
+Validation:
+
+- All four corrected cannon files had `0` remaining `SPR2` canvas/origin mismatches against the known-good cannon reference.
+- `SN_CannonSilver.iff` and `SN_CannonBronze.iff` also had `0` remaining `DGRP` mismatches after the final draw-group cleanup.
+- SimNation source/client files were not edited during this FreeSO test cleanup.
+
 ## Local Test Notes
 
 These notes explain how the features were tested. They are not required production setup steps.
@@ -571,9 +596,13 @@ Recommendation:
 - `SimNation_BlueMysticTree.iff`
 - `SimNation_DarkBlueMysticTree.iff`
 - `SimNation_GreenMysticTree.iff`
+- `SimNation_CannonOrange.iff`
+- `SimNation_CannonPurple.iff`
 - `SimNation_OrangeMysticTree.iff`
 - `SimNation_PurpleMysticTree.iff`
 - `SimNation_RedMysticTree.iff`
 - `SimNation_SilverMysticTree.iff`
 - `SimNation_YellowMysticTree.iff`
+- `SN_CannonBronze.iff`
+- `SN_CannonSilver.iff`
 - `updates.md`
